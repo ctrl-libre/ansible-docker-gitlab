@@ -1,0 +1,25 @@
+---
+gitlab_docker_gitlab_version: 7.11.0
+gitlab_docker_gitlab_name: gitlab
+gitlab_docker_postgres_version: 9.4
+gitlab_docker_postgres_name: gitlab-postgresql
+gitlab_docker_redis_version: latest
+gitlab_docker_redis_name: gitlab-redis
+gitlab_postgres_user: gitlab
+gitlab_postgres_password: 726r71fghdft897
+gitlab_postgres_db: gitlab_production
+gitlab_postgres_path: /opt/gitlab-postgresql/data
+gitlab_smtp_username: smtp
+gitlab_smtp_password: ptms
+gitlab_smtp_domain: test.ignore
+gitlab_smtp_host:
+gitlab_smtp_port:
+gitlab_smtp_starttls: true
+gitlab_smtp_authentication: plain
+gitlab_host: gitlab.nolife.de
+gitlab_ssh_port: 22
+gitlab_http_port: 8000
+gitlab_path: /opt/gitlab/data
+gitlab_email: example@example.ignore
+gitlab_email_reply_to: example@example.ignore
+gitlab_email_display_name: Gitlab

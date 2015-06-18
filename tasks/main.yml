@@ -1,0 +1,112 @@
+---
+
+- name: Add docker repo key
+  apt_key: keyserver=keyserver.ubuntu.com id=36A1D7869245C8950F966E92D8576A8BA88D21E9
+
+- name: Add docker source repo
+  apt_repository: repo="deb https://get.docker.com/ubuntu docker main" state=present
+
+- name: Update cache
+  apt: update_cache=yes
+
+- name: Install docker.io
+  apt: pkg=lxc-docker state=latest
+
+- name: Install docker-py
+  apt: pkg=python-docker state=latest
+
+- name: Install postgresql-client
+  apt: pkg=postgresql-client state=latest
+
+- name: Install postgresql-client
+  apt: pkg=python-psycopg2 state=latest
+
+- name: Stop old gitlab docker
+  docker: image=sameersbn/gitlab name="{{ gitlab_docker_gitlab_name }}" state=stopped
+
+- name: Stop old redis docker
+  docker: image=redis name="{{ gitlab_docker_redis_name }}" state=stopped
+
+- name: Stop old postgres docker
+  docker: image=moredread/postgres name="{{ gitlab_docker_postgres_name }}" state=stopped
+
+- name: Remove old redis docker
+  docker: image=redis name="{{ gitlab_docker_redis_name }}" state=absent
+
+- name: Add new redis docker
+  docker: image="redis:{{ gitlab_docker_redis_version }}" name="{{ gitlab_docker_redis_name }}" state=present
+
+- name: Run new redis docker
+  docker: image="redis:{{ gitlab_docker_redis_version }}" name="{{ gitlab_docker_redis_name }}" state=running
+
+- name: Remove old postgres docker
+  docker: image=moredread/postgres name="{{ gitlab_docker_postgres_name }}" state=absent
+
+- name: Make sure DB data directory exists
+  file: path="{{ gitlab_postgres_path }}" state=directory
+
+- name: Add and run new postgres docker
+  docker:
+    image: "sameersbn/postgresql:{{ gitlab_docker_postgres_version }}"
+    name: "{{ gitlab_docker_postgres_name }}"
+    state: running
+    volumes: "{{ gitlab_postgres_path }}:/var/lib/postgresql"
+    env:
+      DB_NAME: "{{ gitlab_postgres_db }}"
+      DB_USER: "{{ gitlab_postgres_user }}"
+      DB_PASS: "{{ gitlab_postgres_password }}"
+
+- name: Get postgres IP
+  shell: 'docker inspect {{ gitlab_docker_postgres_name }} | grep IPAddres |awk -F''"'' ''{print $4}'''
+  register: postgres_ip
+
+- name: Wait for postgres to start
+  wait_for: host="{{ postgres_ip["stdout"] }}" port="5432" state=started
+
+- name: Wait a bit longer
+  pause: seconds=3
+
+#- name: Add gitlab database on host
+#  postgresql_db: name="{{ gitlab_postgres_db }}" login_host="{{ postgres_ip["stdout"] }}"
+#  register: database
+
+#- name: Add gitlab user on database
+#  postgresql_user: name="{{ gitlab_postgres_user }}" db="{{ gitlab_postgres_db }}" password="{{ gitlab_postgres_password }}" login_host="{{ postgres_ip["stdout"] }}" role_attr_flags="CREATEROLE,CREATEDB,INHERIT,LOGIN,REPLICATION"
+
+- name: Make sure git data directory exists
+  file: path="{{ gitlab_path }}" state=directory
+
+- name: Remove old gitlab docker
+  docker: image=sameersbn/gitlab name="{{ gitlab_docker_gitlab_name }}" state=absent
+
+- name: Add new gitlab docker
+  docker:
+    image: "sameersbn/gitlab:{{ gitlab_docker_gitlab_version }}"
+    name: "{{ gitlab_docker_gitlab_name }}"
+    state: running
+    volumes: "{{ gitlab_path }}:/home/git/data"
+    links:
+    - "{{ gitlab_docker_redis_name }}:redisio"
+    - "{{ gitlab_docker_postgres_name }}:postgresql"
+    env:
+      DB_TYPE: "postgres"
+      DB_NAME: "{{ gitlab_postgres_db }}"
+      DB_USER: "{{ gitlab_postgres_user }}"
+      DB_PASS: "{{ gitlab_postgres_password }}"
+      SMTP_DOMAIN: "{{ gitlab_smtp_domain }}"
+      SMTP_HOST: "{{ gitlab_smtp_host }}"
+      SMTP_USER: "{{ gitlab_smtp_username }}"
+      SMTP_PASS: "{{ gitlab_smtp_password }}"
+      SMTP_PORT: "{{ gitlab_smtp_port }}"
+      SMTP_AUTHENTICATION: "{{ gitlab_smtp_authentication }}"
+      GITLAB_HOST: "{{ gitlab_host }}"
+      GITLAB_SSH_PORT: "{{ gitlab_ssh_port }}"
+      GITLAB_PORT: 443
+      GITLAB_HTTPS: true
+      GITLAB_EMAIL: "{{ gitlab_email }}"
+      GITLAB_EMAIL_DISPLAY_NAME: "{{ gitlab_email_display_name }}"
+      GITLAB_EMAIL_REPLY_TO: "{{ gitlab_email_reply_to }}"
+      SSL_SELF_SIGNED: "true"
+    ports:
+    - '127.0.0.1:{{ gitlab_http_port }}:80'
+    - '{{ gitlab_ssh_port }}:22'
