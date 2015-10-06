@@ -12,8 +12,14 @@
 - name: Install docker.io
   apt: pkg=lxc-docker state=latest
 
+#- name: Install docker-py
+#  apt: pkg=python-docker state=latest
+
+- name: Install pip
+  shell: "easy_install pip"
+
 - name: Install docker-py
-  apt: pkg=python-docker state=latest
+  shell: "pip install docker-py --upgrade"
 
 - name: Install postgresql-client
   apt: pkg=postgresql-client state=latest
@@ -34,13 +40,15 @@
   docker: image=redis name="{{ gitlab_docker_redis_name }}" state=absent
 
 - name: Add new redis docker
-  docker: image="redis:{{ gitlab_docker_redis_version }}" name="{{ gitlab_docker_redis_name }}" state=present
-
-- name: Run new redis docker
-  docker: image="redis:{{ gitlab_docker_redis_version }}" name="{{ gitlab_docker_redis_name }}" state=running
+  docker:
+    image: "redis:{{ gitlab_docker_redis_version }}"
+    name: "{{ gitlab_docker_redis_name }}"
+    state: "running"
+    restart_policy: "always"
+    restart_policy_retry: "5"
 
 - name: Remove old postgres docker
-  docker: image=moredread/postgres name="{{ gitlab_docker_postgres_name }}" state=absent
+  docker: image=sameersbn/postgres name="{{ gitlab_docker_postgres_name }}" state=absent
 
 - name: Make sure DB data directory exists
   file: path="{{ gitlab_postgres_path }}" state=directory
@@ -51,6 +59,8 @@
     name: "{{ gitlab_docker_postgres_name }}"
     state: running
     volumes: "{{ gitlab_postgres_path }}:/var/lib/postgresql"
+    restart_policy: always
+    restart_policy_retry: 5
     env:
       DB_NAME: "{{ gitlab_postgres_db }}"
       DB_USER: "{{ gitlab_postgres_user }}"
@@ -85,6 +95,8 @@
     name: "{{ gitlab_docker_gitlab_name }}"
     state: running
     volumes: "{{ gitlab_path }}:/home/git/data"
+    restart_policy: always
+    restart_policy_retry: 5
     links:
     - "{{ gitlab_docker_redis_name }}:redisio"
     - "{{ gitlab_docker_postgres_name }}:postgresql"
@@ -106,6 +118,7 @@
       GITLAB_EMAIL: "{{ gitlab_email }}"
       GITLAB_EMAIL_DISPLAY_NAME: "{{ gitlab_email_display_name }}"
       GITLAB_EMAIL_REPLY_TO: "{{ gitlab_email_reply_to }}"
+      GITLAB_SECRETS_DB_KEY_BASE: "{{ gitlab_secrets_db_key_base }}"
       SSL_SELF_SIGNED: "true"
     ports:
     - '127.0.0.1:{{ gitlab_http_port }}:80'
